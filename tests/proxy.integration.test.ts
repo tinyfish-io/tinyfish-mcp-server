@@ -6,10 +6,8 @@
  * Run: TINYFISH_API_KEY=... npm run test:integration
  * Without the key the suite skips with a printed notice.
  *
- * BLOCKED ON BACKEND: the hosted server does not yet accept X-API-Key
- * authentication for this proxy's upstream calls, so this suite effectively
- * never runs — it exists so CI turns green the day the backend support lands
- * (set the TINYFISH_API_KEY secret).
+ * X-API-Key auth is live on sandbox; production pending. Point
+ * TINYFISH_UPSTREAM_URL at sandbox until the backend reaches production.
  *
  * Coverage when the key is set:
  * - tools/list via the proxy deep-equals a direct upstream tools/list (the
@@ -17,6 +15,7 @@
  * - one cheap tools/call (fetch_content) round-trips;
  * - one run_web_automation yields ≥1 progress notification then a final result.
  */
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { listeningPort, postJson, sseDataPayloads } from "./helpers/http.js";
 import { createProxyCore } from "../src/core/proxy-core.js";
@@ -161,7 +160,13 @@ describeWithApiKey("proxy integration (real hosted upstream)", () => {
           method: "tools/call",
           params: {
             name: "fetch_content",
-            arguments: { url: "https://example.com" },
+            // urls/format/links/image_links are all required by the tool schema.
+            arguments: {
+              urls: ["https://example.com"],
+              format: "markdown",
+              links: false,
+              image_links: false,
+            },
           },
         },
         { "Mcp-Session-Id": sessionId }
@@ -192,6 +197,9 @@ describeWithApiKey("proxy integration (real hosted upstream)", () => {
             arguments: {
               url: "https://example.com",
               goal: "Read the page heading and report it.",
+              // Required client-minted correlation id (a tool argument, not
+              // the Mcp-Session-Id header).
+              session_id: randomUUID(),
             },
             _meta: { progressToken: "integ-tok-4" },
           },
