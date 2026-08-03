@@ -1,0 +1,65 @@
+{
+  "name": "@tiny-fish/mcp",
+  "version": "0.1.0",
+  "description": "TinyFish local MCP server — reverse proxy to agent.tinyfish.ai/mcp",
+  "mcpName": "io.github.tinyfish-io/tinyfish-mcp-server",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tinyfish-io/tinyfish-mcp-server.git"
+  },
+  "homepage": "https://github.com/tinyfish-io/tinyfish-mcp-server#readme",
+  "bugs": {
+    "url": "https://github.com/tinyfish-io/tinyfish-mcp-server/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "tinyfish",
+    "web-automation",
+    "browser-automation",
+    "proxy"
+  ],
+  "author": "TinyFish (https://tinyfish.ai)",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "tinyfish-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc && chmod +x dist/index.js",
+    "test": "vitest --run",
+    "test:watch": "vitest",
+    "test:integration": "vitest --run --config vitest.integration.config.ts",
+    "lint": "eslint src tests",
+    "format": "prettier --write src tests",
+    "type-check": "tsc --noEmit --project tsconfig.all.json",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.57.2",
+    "@typescript-eslint/parser": "^8.57.2",
+    "eslint": "^10.1.0",
+    "globals": "^17.4.0",
+    "prettier": "^3.0.0",
+    "tsx": "^4.23.1",
+    "typescript": "^5.0.0",
+    "vitest": "^4.1.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
+  }
+}
