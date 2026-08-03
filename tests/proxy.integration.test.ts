@@ -1,13 +1,10 @@
 /**
- * Gated integration tests — the real local proxy against the REAL hosted
+ * Gated integration tests — the real local proxy against the real hosted
  * upstream (default https://agent.tinyfish.ai/mcp, override with
- * TINYFISH_UPSTREAM_URL, e.g. a sandbox deployment).
+ * TINYFISH_UPSTREAM_URL).
  *
  * Run: TINYFISH_API_KEY=... npm run test:integration
  * Without the key the suite skips with a printed notice.
- *
- * X-API-Key auth is live on sandbox; production pending. Point
- * TINYFISH_UPSTREAM_URL at sandbox until the backend reaches production.
  *
  * Coverage when the key is set:
  * - tools/list via the proxy deep-equals a direct upstream tools/list (the
