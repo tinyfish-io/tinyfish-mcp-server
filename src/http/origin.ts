@@ -3,11 +3,10 @@
  * control for the loopback server. Evaluated before the request body is read;
  * on deny the caller answers 403 without touching the body.
  *
- * Policy (00-shared-context §Security):
+ * Policy:
  * - Absent Origin → allow (non-browser clients: curl, MCP SDKs, inspectors).
  * - http/https origins on `127.0.0.1` or `localhost` → allow, any port
- *   (per phase doc: "any port variant of loopback also fine" — so the phase
- *   doc's `port` parameter is dead and deliberately omitted here).
+ *   (any port variant of loopback is fine, so no `port` parameter exists).
  * - Everything else → deny, including the literal "null" Origin (sandboxed
  *   iframes, file://), IPv6 `[::1]` (the server binds IPv4 loopback only),
  *   and anything that does not parse as a URL.

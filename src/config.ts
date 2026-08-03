@@ -40,12 +40,21 @@ const envSchema = z.object({
     .transform((value, ctx) => {
       const raw = value ?? DEFAULT_UPSTREAM_URL;
       let url: URL;
+      // Error messages never echo the raw value: it may embed credentials or
+      // query-string secrets, and these messages go to stderr.
       try {
         url = new URL(raw);
       } catch {
         ctx.addIssue({
           code: "custom",
-          message: `Invalid TINYFISH_UPSTREAM_URL "${raw}" — must be an absolute URL`,
+          message: "Invalid TINYFISH_UPSTREAM_URL — must be an absolute URL",
+        });
+        return z.NEVER;
+      }
+      if (url.username !== "" || url.password !== "") {
+        ctx.addIssue({
+          code: "custom",
+          message: "Invalid TINYFISH_UPSTREAM_URL — URL credentials are not allowed",
         });
         return z.NEVER;
       }
@@ -54,8 +63,8 @@ const envSchema = z.object({
         ctx.addIssue({
           code: "custom",
           message:
-            `Invalid TINYFISH_UPSTREAM_URL "${raw}" — scheme must be https ` +
-            `(http is allowed only for 127.0.0.1/localhost)`,
+            "Invalid TINYFISH_UPSTREAM_URL — scheme must be https " +
+            "(http is allowed only for 127.0.0.1/localhost)",
         });
         return z.NEVER;
       }

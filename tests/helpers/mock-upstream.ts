@@ -1,18 +1,16 @@
 /**
- * Mock of the hosted https://agent.tinyfish.ai/mcp endpoint.
- *
- * Faithful to docs/phases/00-shared-context.md §Verified upstream behavior
- * (verified against ux-labs/frontend/app/mcp/{route.ts,lib/http-handler.ts,
- * mcp-sse-event-formatter.ts,shared/json-rpc.ts}):
+ * Mock of the hosted https://agent.tinyfish.ai/mcp endpoint — the single
+ * fixture shared by every test suite. Faithful to the hosted server's
+ * verified behavior:
  *
  * - POST-only (anything else gets 405, like Next.js's missing-export handling).
  * - initialize with no Mcp-Session-Id header generates a UUID; successful JSON
- *   responses echo Mcp-Session-Id but the SSE path does not (sse-event-handling.ts:
- *   396-403 sets only stream headers). Session ids are NOT validated (any non-empty
- *   string is accepted).
+ *   responses echo Mcp-Session-Id but the SSE path does not (it sets only
+ *   stream headers). Session ids are NOT validated (any non-empty string is
+ *   accepted).
  * - Non-ping requests without the header get JSON-RPC -32600
- *   "Missing required Mcp-Session-Id header" (HTTP 400, per shared/json-rpc.ts
- *   which maps client-error codes to HTTP 400 and the rest to 500).
+ *   "Missing required Mcp-Session-Id header" (HTTP 400 — the hosted server
+ *   maps client-error codes to HTTP 400 and the rest to 500).
  * - Notifications return HTTP 204 with an empty body.
  * - Supported methods: ping, initialize, tools/list, tools/call, resources/list,
  *   resources/read. Anything else -> -32601 "Method not found: <method>".
@@ -26,13 +24,10 @@
  *   rejects notifications missing the headers too, so tests catch header
  *   regressions on every call type.
  *
- * Phase 7: promoted from spike/mock-upstream.ts — this is now the single
- * fixture shared by every test suite (and the spike scripts, which remain
- * type-checked). Script knobs: `authReject` (canned auth-layer rejection),
- * plus per-call tool arguments `frameDelayMs`, `crashAfterFrames`,
- * `omitRunMeta`, and `noProgress` on run_web_automation; `seen` records
- * method / sessionId / authorization / protocolVersion / aborted / parsed
- * request body per request.
+ * Script knobs: `authReject` (canned auth-layer rejection), plus per-call
+ * tool arguments `frameDelayMs`, `crashAfterFrames`, `omitRunMeta`, and
+ * `noProgress` on run_web_automation; `seen` records method / sessionId /
+ * authorization / protocolVersion / aborted / parsed request body per request.
  */
 import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
@@ -67,7 +62,7 @@ export const MOCK_INSTRUCTIONS =
   "web context. (Mock stand-in for the hosted server's long instructions string — the proxy " +
   "must pass it through verbatim, byte for byte, including this parenthetical.)";
 
-/** Shape mirrors route.ts handleInitialize (protocolVersion always 2025-11-25). */
+/** Shape mirrors the hosted server's initialize result (protocolVersion always 2025-11-25). */
 export const MOCK_INITIALIZE_RESULT = {
   protocolVersion: "2025-11-25",
   capabilities: {
@@ -123,7 +118,7 @@ export function buildResourceReadResult(uri: string) {
   };
 }
 
-/** Mirrors json-rpc.ts createWrapResult / the echo path: a plain CallToolResult. */
+/** Mirrors the hosted server's echo path: a plain CallToolResult. */
 export function buildEchoResult(name: string, args: unknown) {
   return {
     content: [
@@ -137,7 +132,8 @@ export function buildEchoResult(name: string, args: unknown) {
 }
 
 /**
- * The scripted SSE sequence for run_web_automation, mirroring MCPSSEFormatter:
+ * The scripted SSE sequence for run_web_automation, mirroring the hosted
+ * server's frame shapes:
  * params key order progressToken, progress, total, message, _meta; heartbeat is
  * an ordinary progress notification; final response result key order
  * content, isError, _meta, structuredContent (formatComplete sets _meta before
@@ -218,8 +214,8 @@ export interface MockUpstream {
    * Requests seen, in order (method + session id + inbound Authorization
    * header, which the proxy must never forward), for client-side assertions.
    * `aborted` flips to true when the proxy tears the connection down before
-   * the response finished (Phase 5: client-disconnect must propagate as an
-   * upstream abort — the mock observes it here).
+   * the response finished (client-disconnect must propagate as an upstream
+   * abort — the mock observes it here).
    */
   seen: Array<{
     method: string | undefined;
@@ -231,7 +227,7 @@ export interface MockUpstream {
     body: unknown;
   }>;
   /**
-   * Phase 6 knob (mutable): when set, EVERY request is answered with this
+   * Mutable knob: when set, EVERY request is answered with this
    * canned rejection before any routing — simulating an auth layer or
    * intermediary answering with an arbitrary status/content-type/body (e.g. a
    * 401 text page, or a 401 whose body IS a JSON-RPC error). The body string
@@ -267,7 +263,7 @@ function jsonRpcError(
   id: JsonRpcId,
   extraHeaders: Record<string, string> = {},
 ): void {
-  // shared/json-rpc.ts: client-error codes -> HTTP 400, everything else -> 500.
+  // Hosted-server convention: client-error codes -> HTTP 400, everything else -> 500.
   const isClientError =
     code === ErrorCodes.ParseError ||
     code === ErrorCodes.InvalidRequest ||
@@ -301,10 +297,10 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * - `crashAfterFrames`: destroy the socket after N frames (mid-stream
  *   upstream-disconnect simulation; the proxy must not relay it as a clean
  *   end).
- * - `omitRunMeta` (Phase 6): strip `params._meta` from progress frames, so a
+ * - `omitRunMeta`: strip `params._meta` from progress frames, so a
  *   crash test can exercise the no-runId-seen branch of the mid-stream error
  *   frame.
- * - `noProgress` (Phase 7): degenerate stream — the FIRST frame is the final
+ * - `noProgress`: degenerate stream — the FIRST frame is the final
  *   JSON-RPC response, no progress notifications precede it (still served as
  *   text/event-stream, like an upstream whose run finishes instantly).
  * A premature client (= proxy) disconnect marks the seen entry aborted and
@@ -343,8 +339,8 @@ async function streamAutomation(
       entry.aborted = true;
     }
   });
-  // Real upstream SSE responses do NOT echo Mcp-Session-Id — sse-event-handling.ts:396-403
-  // sets only the stream headers below (verified in phase-0 review).
+  // The hosted server's SSE responses do NOT echo Mcp-Session-Id — they set
+  // only the stream headers below.
   res.writeHead(200, {
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache, no-transform",
@@ -357,7 +353,7 @@ async function streamAutomation(
       res.destroy();
       return;
     }
-    // Upstream frames are bare `data:` lines (sse-event-handling.ts:273).
+    // The hosted server's frames are bare `data:` lines.
     res.write(`data: ${JSON.stringify(message)}\n\n`);
     written += 1;
     await sleep(frameDelayMs);
@@ -391,7 +387,7 @@ export function startMockUpstream(): Promise<MockUpstream> {
       return;
     }
 
-    // Phase 6 knob: canned auth-layer rejection, body verbatim, before routing.
+    // Canned auth-layer rejection knob: body verbatim, before routing.
     if (mock.authReject !== null) {
       res.writeHead(mock.authReject.status, { "Content-Type": mock.authReject.contentType });
       res.end(mock.authReject.body);
@@ -421,7 +417,7 @@ export function startMockUpstream(): Promise<MockUpstream> {
     const method = typeof body.method === "string" ? body.method : undefined;
     const isNotification = method !== undefined && !("id" in body);
 
-    // Notifications are handled before session resolution (http-handler.ts:147-153).
+    // The hosted server handles notifications before session resolution.
     if (isNotification) {
       seen.push({
         method,
@@ -448,7 +444,7 @@ export function startMockUpstream(): Promise<MockUpstream> {
     const id = body.id as JsonRpcId;
     const params = (body.params ?? {}) as Record<string, unknown>;
 
-    // Session model (http-handler.ts:218-223): header wins; initialize mints a
+    // Hosted server's session model: header wins; initialize mints a
     // UUID; ids are never validated beyond non-emptiness.
     const headerSession = (req.headers["mcp-session-id"] as string | undefined) || null;
     const sessionId = headerSession ?? (method === "initialize" ? randomUUID() : null);

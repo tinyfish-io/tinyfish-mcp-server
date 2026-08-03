@@ -115,5 +115,26 @@ describe("parseConfig", () => {
           .upstreamUrl
       ).toBe("https://sandbox.tinyfish.ai/mcp");
     });
+
+    it("rejects URLs with embedded credentials", () => {
+      expect(() =>
+        parseConfig({ ...validEnv, TINYFISH_UPSTREAM_URL: "https://user:secret@example.com/mcp" })
+      ).toThrowError(/URL credentials are not allowed/);
+    });
+
+    it("never echoes the URL value in error messages", () => {
+      for (const url of [
+        "http://user:hunter2@example.com/mcp",
+        "https://user:hunter2@example.com/mcp",
+        "hunter2 not a url",
+      ]) {
+        try {
+          parseConfig({ ...validEnv, TINYFISH_UPSTREAM_URL: url });
+          expect.unreachable("should have thrown");
+        } catch (err) {
+          expect((err as Error).message).not.toContain("hunter2");
+        }
+      }
+    });
   });
 });

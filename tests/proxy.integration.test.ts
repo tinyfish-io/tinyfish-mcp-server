@@ -4,15 +4,12 @@
  * TINYFISH_UPSTREAM_URL, e.g. a sandbox deployment).
  *
  * Run: TINYFISH_API_KEY=... npm run test:integration
- * Without the key the suite skips with a printed notice (CLI skip pattern —
- * ux-labs/sdk/cli/tests/api.integration.test.ts).
+ * Without the key the suite skips with a printed notice.
  *
- * BLOCKED ON BACKEND: the hosted server's auth chain (shared/resolve-user-id.ts)
- * accepts Bearer / HMAC widget token / Clerk OAuth today; the X-API-Key →
- * validateApiKey branch is an external ux-labs PR that has NOT yet reached
- * sandbox. Until that branch deploys, no API key can authenticate this proxy's
- * upstream calls, so this suite effectively never runs — it exists so CI turns
- * green the day the backend lands (set the TINYFISH_API_KEY secret).
+ * BLOCKED ON BACKEND: the hosted server does not yet accept X-API-Key
+ * authentication for this proxy's upstream calls, so this suite effectively
+ * never runs — it exists so CI turns green the day the backend support lands
+ * (set the TINYFISH_API_KEY secret).
  *
  * Coverage when the key is set:
  * - tools/list via the proxy deep-equals a direct upstream tools/list (the
@@ -222,7 +219,7 @@ describeWithApiKey("proxy integration (real hosted upstream)", () => {
   );
 });
 
-// Mirror of the CLI pattern: keep a visible, always-collected marker of the
+// Keep a visible, always-collected marker of the
 // skip so a keyless run reports 1 passed test instead of "no tests found".
 describe.skipIf(Boolean(API_KEY))("proxy integration (real hosted upstream)", () => {
   it("skips real upstream coverage when TINYFISH_API_KEY is not set", () => {

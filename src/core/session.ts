@@ -1,25 +1,22 @@
 /**
  * Session bridging state.
  *
- * With the raw-pipe architecture (spike decision B) the client re-sends
- * upstream's own Mcp-Session-Id, so localKey is normally the upstream-issued
- * id itself and the map's main job is abort tracking for in-flight upstream
- * fetches. The upstreamSessionId / protocolVersion fields are kept per the
- * Phase 3 contract regardless — they cost nothing and keep the door open for
- * a future stdio transport that needs real id bridging.
+ * The proxy relays session headers verbatim: the client re-sends upstream's
+ * own Mcp-Session-Id, so localKey is normally the upstream-issued id itself
+ * and the map's main job is abort tracking for in-flight upstream fetches.
+ * The upstreamSessionId / protocolVersion fields cost nothing and keep the
+ * door open for a future stdio transport that needs real id bridging.
  *
- * Close is local-only cleanup: upstream has no DELETE handler
- * (00-shared-context §1), so teardown just aborts in-flight fetches and drops
- * the entry.
+ * Close is local-only cleanup: the hosted server has no DELETE endpoint, so
+ * teardown just aborts in-flight fetches and drops the entry.
  *
  * Growth characteristic (deliberate): entries are created on first use and
- * removed only by close()/closeAll(). The raw-pipe HTTP surface has no
- * client-driven teardown signal (clients cannot DELETE), so a long-running
- * proxy accumulates one small entry per distinct session key until process
- * shutdown runs closeAll() via the shutdown hook. That is acceptable for a
- * local single-user proxy — entries are a few strings plus an empty Set — and
- * is the consciously chosen steady state. Phase 4 guidance: call
- * core.close(localKey) wherever the transport does learn of a session's end
+ * removed only by close()/closeAll(). The HTTP surface has no client-driven
+ * teardown signal (clients cannot DELETE), so a long-running proxy
+ * accumulates one small entry per distinct session key until process shutdown
+ * runs closeAll() via the shutdown hook. That is acceptable for a local
+ * single-user proxy — entries are a few strings plus an empty Set. Call
+ * core.close(localKey) wherever a transport does learn of a session's end
  * (e.g. a future stdio transport's disconnect); an idle TTL can be added
  * later if a real leak ever materializes.
  */
@@ -61,8 +58,8 @@ export class SessionStore {
   /**
    * Map an additional key to an existing entry. Used by initialize() to make
    * the upstream-issued Mcp-Session-Id resolve to the same session as the
-   * initialize-time local key: with raw-pipe bridging the client re-sends
-   * upstream's id, so later calls arrive keyed by that id.
+   * initialize-time local key: the client re-sends upstream's id, so later
+   * calls arrive keyed by that id.
    */
   alias(aliasKey: string, entry: SessionEntry): void {
     this.sessions.set(aliasKey, entry);
@@ -86,7 +83,7 @@ export class SessionStore {
   /**
    * Local-only teardown: abort every in-flight upstream fetch for the session
    * and drop the entry — including every alias key that maps to the same
-   * entry. No upstream DELETE — upstream has no DELETE handler.
+   * entry. No upstream DELETE — the hosted server has no DELETE endpoint.
    */
   close(localKey: string): void {
     const entry = this.sessions.get(localKey);

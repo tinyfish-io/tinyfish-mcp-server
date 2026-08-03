@@ -207,7 +207,7 @@ describe("proxyCore session bridging (injected fetch)", () => {
     const core = makeCore(fetchFn);
     await core.initialize("init-key", INITIALIZE_REQUEST, "2025-06-18");
 
-    // Phase 4 raw-pipe bridging: the client re-sends upstream's id and the
+    // The client re-sends upstream's id and the
     // adapter keys calls by it — which must resolve to the same session entry.
     await core.forward("sess-upstream", TOOLS_LIST_REQUEST);
     expect(calls[1].headers["mcp-session-id"]).toBe("sess-upstream");
@@ -367,7 +367,7 @@ describe("proxyCore session bridging (injected fetch)", () => {
     core.close("local-1");
 
     const written = stderrSpy.mock.calls.map((args) => String(args[0])).join("");
-    // Phase 6 pinned decision: the JSON answer is dropped (notifications have
+    // Deliberate: the JSON answer is dropped (notifications have
     // no response channel) but the warn names both status and error code.
     expect(written).toContain("unexpected json response (HTTP 401, JSON-RPC error -32000)");
     expect(written).not.toContain(API_KEY);

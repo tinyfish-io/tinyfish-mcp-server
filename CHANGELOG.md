@@ -8,8 +8,6 @@ and this project adheres to
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-08-03
-
 ### Added
 
 - Initial release of `@tiny-fish/mcp`: a local Streamable-HTTP MCP server at
@@ -35,5 +33,4 @@ and this project adheres to
 - `tinyfish-mcp` bin, Node >= 22, ESM, published files limited to `dist/`,
   `README.md`, `LICENSE`.
 
-[Unreleased]: https://github.com/tinyfish-io/tinyfish-mcp-server/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/tinyfish-io/tinyfish-mcp-server/releases/tag/v0.1.0
+[Unreleased]: https://github.com/tinyfish-io/tinyfish-mcp-server/commits/main

@@ -155,7 +155,7 @@ describe("parseSseStream", () => {
     );
   });
 
-  it("throws UpstreamProtocolError on an empty data payload (pinned: every frame must be JSON-RPC)", async () => {
+  it("throws UpstreamProtocolError on an empty data payload (every frame must be JSON-RPC)", async () => {
     await expect(collect(streamOf("data:\n\n"))).rejects.toBeInstanceOf(UpstreamProtocolError);
   });
 

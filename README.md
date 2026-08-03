@@ -1,5 +1,8 @@
 # @tiny-fish/mcp
 
+> **Status: pre-release.** Not yet published to npm — API-key authentication
+> on the hosted server is still rolling out.
+
 TinyFish local MCP server — a transparent reverse proxy that exposes a local
 Streamable-HTTP MCP endpoint at `http://127.0.0.1:3711/mcp` and forwards every
 request to the hosted TinyFish MCP server at `https://agent.tinyfish.ai/mcp`.
@@ -17,7 +20,7 @@ If your MCP client supports remote Streamable-HTTP servers (Claude Code,
 Claude Desktop connectors, Cursor, VS Code, and most modern clients do),
 connect it **directly** to the hosted server — no install, no local process:
 
-```
+```text
 https://agent.tinyfish.ai/mcp
 ```
 
@@ -55,7 +58,7 @@ tinyfish-mcp
 
 On success it prints one line to stderr:
 
-```
+```text
 tinyfish-mcp [info] listening on http://127.0.0.1:3711 — upstream https://agent.tinyfish.ai/mcp — v0.1.0
 ```
 
@@ -221,11 +224,8 @@ automation and spends credits.
 
 ## Maintenance
 
-- **Owner:** TBD (to be named before the first public release — see the
-  maintenance gate in the internal release runbook,
-  `docs/phases/release-runbook.md`).
-- **Support policy:** TBD — issue-triage and release cadence are defined in
-  the release runbook alongside the owner.
+Maintained by [@Zechereh](https://github.com/Zechereh). Bugs and feature
+requests: [GitHub issues](https://github.com/tinyfish-io/tinyfish-mcp-server/issues).
 
 ## License
 

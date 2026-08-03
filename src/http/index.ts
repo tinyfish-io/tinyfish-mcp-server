@@ -7,8 +7,7 @@ import { checkOrigin } from "./origin.js";
  * Request handler contract for the HTTP layer. Handlers may be async: the
  * server awaits the returned promise and converts a rejection into a 500
  * JSON-RPC InternalError response (or just ends the response when headers are
- * already out, e.g. mid-SSE), so async failures are never silently swallowed
- * (Phase 2 review note). Phase 6 refines the error shaping.
+ * already out, e.g. mid-SSE), so async failures are never silently swallowed.
  */
 export type RequestHandler = (
   req: IncomingMessage,
@@ -78,9 +77,9 @@ export function startHttpServer(
 }
 
 /**
- * Await the handler; turn sync throws and async rejections into a 500. With
- * Phase 6 the MCP adapter shapes every classified failure itself, so anything
- * that reaches this catch is a local proxy bug: full stack to stderr, generic
+ * Await the handler; turn sync throws and async rejections into a 500. The
+ * MCP adapter shapes every classified failure itself, so anything that
+ * reaches this catch is a local proxy bug: full stack to stderr, generic
  * -32603 InternalError to the client.
  */
 async function invokeSafely(
@@ -91,8 +90,8 @@ async function invokeSafely(
   try {
     await handler(req, res);
   } catch (err) {
-    // Core error messages never contain the API key (Phase 3 invariant), and
-    // the client-facing body is generic regardless — the key cannot leak.
+    // Core error messages never contain the API key, and the client-facing
+    // body is generic regardless — the key cannot leak.
     log.error(
       `request failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`
     );

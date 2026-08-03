@@ -1,23 +1,23 @@
 /**
- * Typed transport-level errors thrown by the proxy core, plus the one
- * client-facing shaping function (Phase 6): `toJsonRpcError` for pre-stream
- * failures and `toStreamErrorFrame` for failures after an SSE relay started.
- * Every adapter catch path routes through these two functions — no ad-hoc
- * error bodies anywhere else, with exactly two deliberate exceptions (pinned,
- * Phase 7): the adapter's ParseError reply (http/adapter.ts — built where the
- * unparseable body is caught, since there is nothing to route), and the
- * last-resort -32603 backstop in http/index.ts's invokeSafely. Messages must
- * never contain the API key (they describe network/protocol conditions only).
+ * Typed transport-level errors thrown by the proxy core, plus the only
+ * client-facing shaping functions: `toJsonRpcError` for pre-stream failures
+ * and `toStreamErrorFrame` for failures after an SSE relay started. Every
+ * adapter catch path routes through these two functions — no ad-hoc error
+ * bodies anywhere else, with exactly two deliberate exceptions: the adapter's
+ * ParseError reply (http/adapter.ts — built where the unparseable body is
+ * caught, since there is nothing to route), and the last-resort -32603
+ * backstop in http/index.ts's invokeSafely. Messages must never contain the
+ * API key (they describe network/protocol conditions only).
  *
- * HTTP status decision for locally shaped errors (pinned here, Phase 6):
- * upstream's own convention (shared/json-rpc.ts) maps client-error JSON-RPC
- * codes to HTTP 400 and everything else to 500. The proxy mirrors the 400 for
- * client errors (-32700 ParseError) and picks **502 Bad Gateway** for the
- * upstream-leg failures it shapes itself (-32000 unreachable/stream-failed,
- * -32001 auth rejection): the proxy is healthy, the upstream hop failed —
- * distinguishing these from a genuine local proxy bug, which stays **500**
- * with -32603 InternalError. Upstream-originated JSON-RPC errors are never
- * shaped at all: they forward verbatim under upstream's own HTTP status.
+ * HTTP status decision for locally shaped errors: the hosted server maps
+ * client-error JSON-RPC codes to HTTP 400 and everything else to 500. The
+ * proxy mirrors the 400 for client errors (-32700 ParseError) and picks
+ * **502 Bad Gateway** for the upstream-leg failures it shapes itself (-32000
+ * unreachable/stream-failed, -32001 auth rejection): the proxy is healthy,
+ * the upstream hop failed — distinguishing these from a genuine local proxy
+ * bug, which stays **500** with -32603 InternalError. Upstream-originated
+ * JSON-RPC errors are never shaped at all: they forward verbatim under
+ * upstream's own HTTP status.
  */
 
 /** JSON-RPC error codes used by locally shaped errors. */
@@ -48,8 +48,8 @@ export class UpstreamUnreachableError extends ProxyCoreError {
 
 /**
  * Upstream answered 401/403 with a body that is NOT a JSON-RPC message (a
- * JSON-RPC error body, whatever its HTTP status, forwards verbatim instead —
- * rules-table row 1). Carries the upstream status and body text so the shaped
+ * JSON-RPC error body, whatever its HTTP status, forwards verbatim instead).
+ * Carries the upstream status and body text so the shaped
  * client error can include them as diagnostics. The body text is truncated to
  * ~2KB at construction; the Error message itself never includes it.
  */
@@ -80,7 +80,7 @@ export const AUTH_BODY_LIMIT = 2048;
  * Delivering a relayed SSE frame to the LOCAL client failed (the transport's
  * onEvent callback rejected — e.g. the client socket died mid-write). This is
  * a client-side condition, never an upstream one: it must not be logged or
- * classified as "Upstream unreachable" (Phase 4 review gap 2 / Phase 5).
+ * classified as "Upstream unreachable".
  */
 export class LocalWriteError extends ProxyCoreError {}
 
@@ -112,7 +112,7 @@ export function isAbortError(err: unknown): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Client-facing shaping (Phase 6) — the only place error bodies are built
+// Client-facing shaping — the only place error bodies are built
 // ---------------------------------------------------------------------------
 
 export interface JsonRpcErrorBody {
@@ -129,8 +129,8 @@ export interface ShapedJsonRpcError {
 
 /**
  * Map a failure the upstream never answered (or answered unusably) to the
- * client-facing JSON-RPC error + local HTTP status, per the Phase 6 rules
- * table. Only failures upstream never saw as JSON-RPC get shaped here —
+ * client-facing JSON-RPC error + local HTTP status.
+ * Only failures upstream never saw as JSON-RPC get shaped here —
  * upstream JSON-RPC errors forward verbatim and never reach this function.
  * Never includes the API key: transport-error messages describe network and
  * protocol conditions only, and unexpected local errors get a generic message
@@ -200,7 +200,7 @@ export function toJsonRpcError(failure: unknown, requestId: unknown): ShapedJson
 
 /**
  * Build the final SSE-framed JSON-RPC error for a failure AFTER the local SSE
- * relay started (rules-table row "mid-stream upstream disconnect"). A
+ * relay started (mid-stream upstream disconnect). A
  * tools/call may have side effects, so the message warns that the run may
  * still be executing and is never retried silently; when a run id was already
  * seen in a progress frame's `_meta.runId` it is included in `data.runId`

@@ -1,9 +1,8 @@
 /**
  * Shared test helpers for suites that drive the FULL local proxy over real
- * HTTP (client → 127.0.0.1 server → proxy core → mock upstream). Deduplicated
- * from adapter/relay/errors suites in Phase 7 — fixture builders live in
- * ./mock-upstream.ts; scripted-fetch helpers stay local to the suites that
- * shape them differently.
+ * HTTP (client → 127.0.0.1 server → proxy core → mock upstream). Fixture
+ * builders live in ./mock-upstream.ts; scripted-fetch helpers stay local to
+ * the suites that shape them differently.
  */
 import type { Server } from "node:http";
 

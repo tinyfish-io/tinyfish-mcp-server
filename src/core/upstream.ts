@@ -5,8 +5,8 @@
  * classifies the response by HTTP status and content type only — it never
  * inspects methods, tool names, or result schemas. The upstream HTTP status is
  * preserved on every variant so the transport adapter can pass it through
- * (spike finding: json-rpc client errors arrive as 400, server errors as 500,
- * notifications as 204).
+ * (the hosted server answers JSON-RPC client errors as 400, server errors as
+ * 500, notifications as 204).
  *
  * Web-standard types only (fetch / Response / ReadableStream) — no node:http.
  */
@@ -133,8 +133,7 @@ export class UpstreamClient {
     if (text.length === 0) {
       // A body-less 401/403 (e.g. a gateway/LB that strips bodies) is still an
       // auth rejection — classify it BEFORE the generic empty return so the
-      // client gets the check-your-TINYFISH_API_KEY error, not a protocol one
-      // (Phase 6 review gap 1).
+      // client gets the check-your-TINYFISH_API_KEY error, not a protocol one.
       if (status === 401 || status === 403) {
         throw new UpstreamAuthError(status, "");
       }
@@ -144,7 +143,7 @@ export class UpstreamClient {
     try {
       body = JSON.parse(text);
     } catch (err) {
-      // Phase 6: a 401/403 whose body is not JSON at all is an auth rejection
+      // A 401/403 whose body is not JSON at all is an auth rejection
       // from an intermediary or a non-MCP error page — classified so the
       // adapter can shape the check-your-TINYFISH_API_KEY error. Any other
       // status with a non-JSON body stays a protocol violation.
@@ -159,8 +158,8 @@ export class UpstreamClient {
     }
     // A 401/403 with a JSON body that is NOT a JSON-RPC message (e.g.
     // {"error":"unauthorized"}) is also an auth rejection — only a genuine
-    // JSON-RPC error body forwards verbatim (rules-table row 1, preserving
-    // upstream's HTTP status).
+    // JSON-RPC error body forwards verbatim, preserving upstream's HTTP
+    // status.
     if ((status === 401 || status === 403) && !isJsonRpcMessage(body)) {
       throw new UpstreamAuthError(status, text);
     }
@@ -180,13 +179,12 @@ export class UpstreamClient {
  * carries (`result`/`error` for responses, `method` for requests and
  * notifications). Quasi-JSON-RPC junk like {"jsonrpc":"2.0","message":"no"}
  * fails the gate, so at 401/403 it shapes as the -32001 auth error instead of
- * forwarding (Phase 6 review gap 2).
+ * forwarding.
  *
  * BATCH ARRAYS are deliberately outside this gate: MCP forbids JSON-RPC
  * batching and upstream does not support it, so a 401/403 whose body is a
  * batch(-error) array shapes as -32001 with the raw body preserved in
- * `data.upstreamBody` rather than forwarding verbatim (Phase 6 review note,
- * pinned in Phase 7).
+ * `data.upstreamBody` rather than forwarding verbatim.
  */
 function isJsonRpcMessage(body: unknown): boolean {
   return (
@@ -201,7 +199,7 @@ function isJsonRpcMessage(body: unknown): boolean {
 /**
  * Map a fetch/stream failure to a typed transport error. Never includes the
  * key. When `url` is given (the fetch call site knows it), the upstream host
- * is attached so the Phase 6 shaping can name it in the client-facing message.
+ * is attached so the error shaping can name it in the client-facing message.
  */
 export function toTransportError(
   err: unknown,

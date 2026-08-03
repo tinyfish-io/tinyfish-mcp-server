@@ -1,7 +1,7 @@
 /**
  * Per-request MCP wiring over the transport-agnostic proxy core.
  *
- * Session bridging (raw-pipe, spike decision B): the local client re-sends
+ * Session bridging: the local client re-sends
  * whatever Mcp-Session-Id upstream issued, so the client-sent header IS the
  * core localKey. For `initialize` — where no upstream id exists yet — a
  * locally generated key seeds the session entry, and the core aliases that
@@ -15,9 +15,9 @@
  * Mcp-Session-Id and MCP-Protocol-Version; the core builds every outbound
  * header itself.
  *
- * Streaming (Phase 5): when upstream answers SSE, frames are relayed through
+ * Streaming: when upstream answers SSE, frames are relayed through
  * the core's onEvent into an SSE response using the ORIGINAL `data:` payload
- * string (byte-verbatim relay — no re-serialization). Each write is awaited
+ * string (byte-verbatim, no re-serialization). Each write is awaited
  * (backpressure), a local client disconnect aborts the upstream fetch via a
  * per-request AbortSignal (no orphaned upstream streams), and mid-stream
  * failures are classified: local write failures are never labeled upstream.
@@ -45,10 +45,9 @@ export function createMcpAdapter(core: ProxyCore): RequestHandler {
     try {
       message = JSON.parse(raw.toString("utf8"));
     } catch {
-      // Local ParseError mirroring upstream's shape (shared/json-rpc.ts:
-      // client-error codes → HTTP 400; id -1 when no request id is known).
-      // The one case the proxy answers without forwarding — it cannot route
-      // what it cannot parse.
+      // Local ParseError mirroring upstream's shape (client-error codes →
+      // HTTP 400; id -1 when no request id is known). The one case the proxy
+      // answers without forwarding — it cannot route what it cannot parse.
       sendJson(res, 400, {
         jsonrpc: "2.0",
         error: { code: JsonRpcErrorCodes.ParseError, message: "Parse error: Invalid JSON" },
@@ -60,7 +59,7 @@ export function createMcpAdapter(core: ProxyCore): RequestHandler {
     try {
       await route(core, res, message, sessionId, protocolVersion);
     } catch (err) {
-      // Phase 6: every failure upstream never answered as JSON-RPC is shaped
+      // Every failure upstream never answered as JSON-RPC is shaped
       // through the one function in core/errors.ts. Streamed requests handle
       // their own mid-stream failures and only rethrow pre-stream ones, so
       // headers are normally unsent here; the guard covers a write that died
@@ -168,8 +167,7 @@ async function relayPossiblyStreaming(
 ): Promise<void> {
   let streaming = false;
   // Last _meta.runId seen in a relayed progress frame — upstream names the
-  // run there so a mid-stream failure can hand the client a recovery handle
-  // (rules table: include run_id in the error frame's data when seen).
+  // run there so a mid-stream failure can hand the client a recovery handle.
   let lastRunId: string | undefined;
   const clientAbort = new AbortController();
   const onClose = (): void => {
@@ -181,7 +179,7 @@ async function relayPossiblyStreaming(
     if (!streaming) {
       streaming = true;
       // Mirror upstream's SSE headers. Deliberately no Mcp-Session-Id:
-      // upstream's SSE path never sets one (Phase 5 invariant).
+      // upstream's SSE path never sets one.
       res.writeHead(200, {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache, no-transform",
@@ -206,8 +204,7 @@ async function relayPossiblyStreaming(
       } catch (err) {
         // A final-frame write failure is a LOCAL socket condition, exactly
         // like a progress-frame write failure inside onEvent — classify it the
-        // same way so it can never be mislabeled as an upstream stream failure
-        // (Phase 5 review gap 2).
+        // same way so it can never be mislabeled as an upstream stream failure.
         throw new LocalWriteError(
           `Relaying the final SSE frame to the local client failed: ${
             err instanceof Error ? err.message : String(err)
@@ -232,19 +229,18 @@ async function relayPossiblyStreaming(
       // Writing to the local client socket failed (client dying but 'close'
       // not yet observed). Teardown already happened in the core (the throw
       // exits the frame loop, canceling the upstream stream). Never labeled
-      // "Upstream unreachable" (Phase 4 review gap 2).
+      // "Upstream unreachable".
       log.warn(err.message);
       res.destroy();
       return;
     }
     if (streaming) {
       // The stream broke after the local SSE response already started. Emit
-      // the final SSE-framed JSON-RPC error per the Phase 6 rules table
-      // (-32000, "the run may still be executing", runId in data when seen)
-      // — never an unframed body into a started SSE stream. The log prefix
-      // names the actual culprit: a classified core error is an upstream-leg
-      // failure; anything else is a LOCAL proxy bug and must not be logged
-      // with an upstream-blaming label (same mislabel class as gap 2).
+      // the final SSE-framed JSON-RPC error (-32000, "the run may still be
+      // executing", runId in data when seen) — never an unframed body into a
+      // started SSE stream. The log prefix names the actual culprit: a
+      // classified core error is an upstream-leg failure; anything else is a
+      // LOCAL proxy bug and must not be logged with an upstream-blaming label.
       if (err instanceof ProxyCoreError) {
         log.error(`upstream stream failed mid-relay: ${err.message}`);
       } else {
@@ -280,7 +276,7 @@ function runIdOf(event: unknown): string | undefined {
 
 /** Write upstream's status + JSON-RPC body verbatim; echo the session header. */
 function sendProxyResponse(res: ServerResponse, response: ProxyResponse): void {
-  // Copy upstream's Content-Type through (spike guidance); fall back for
+  // Copy upstream's Content-Type through; fall back for
   // locally synthesized responses (e.g. an SSE final frame answered as JSON).
   const headers: Record<string, string> = {
     "Content-Type": response.contentType ?? "application/json",
@@ -303,7 +299,7 @@ function sendJson(
 
 /**
  * One SSE frame; resolves when the chunk is flushed. Relays the ORIGINAL
- * upstream payload string when available (byte-verbatim — spike guidance);
+ * upstream payload string when available (byte-verbatim);
  * falls back to JSON.stringify for locally synthesized frames. A payload
  * containing newlines (multi-line `data:` field) is re-split into one
  * `data:` line per payload line, which reconstructs to identical bytes on the
@@ -335,7 +331,7 @@ function headerValue(req: IncomingMessage, name: string): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
-/** JSON-RPC notification: an object with a method and no id key (mock/upstream rule). */
+/** JSON-RPC notification: an object with a method and no id key (upstream's rule). */
 function isNotification(message: unknown): boolean {
   return (
     typeof message === "object" &&

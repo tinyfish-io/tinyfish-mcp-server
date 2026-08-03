@@ -6,7 +6,7 @@ describe("checkOrigin", () => {
     undefined, // non-browser clients send no Origin
     "http://127.0.0.1:3711",
     "http://localhost:3711",
-    // any loopback port variant is fine (phase doc)
+    // any loopback port variant is fine
     "http://127.0.0.1:8080",
     "http://localhost:1234",
     "http://localhost", // default port

@@ -21,14 +21,14 @@ import { toTransportError, UpstreamClient, type FetchLike } from "./upstream.js"
 /**
  * Plain callback invoked per intermediate SSE frame (progress notifications).
  * May return a promise; forwardStream awaits each emission before reading the
- * next frame, so a relaying transport can propagate write backpressure
- * (Phase 5 contract). `rawData` is the frame's original `data:` payload string
+ * next frame, so a relaying transport can propagate write backpressure.
+ * `rawData` is the frame's original `data:` payload string
  * (multi-line values joined with "\n") — relay it verbatim when possible; the
  * parsed `message` is a fallback for transports that must re-serialize. A
  * rejection from onEvent surfaces as LocalWriteError (client-side condition),
  * never as an upstream transport error.
  *
- * DELIBERATE DROP (Phase 6 decision, Phase 5 review gap 3): SSE `event:` and
+ * DELIBERATE DROP: SSE `event:` and
  * `id:` fields are parsed by core/sse.ts but NOT carried through this
  * callback — only the `data:` payload is relayed. The verified upstream sends
  * bare `data:` frames exclusively, so threading them through would be dead
@@ -40,7 +40,7 @@ export type OnEvent = (message: unknown, rawData?: string) => void | Promise<voi
 /**
  * A completed upstream exchange. `body` is the raw JSON-RPC response object,
  * verbatim — success or error, never unwrapped. `status` is upstream's HTTP
- * status (it must survive to the client — spike finding). `sessionId` is the
+ * status (it must survive to the client). `sessionId` is the
  * Mcp-Session-Id upstream echoed on JSON responses (null on SSE — upstream's
  * SSE path sets no session header).
  */
@@ -74,9 +74,9 @@ export interface ProxyCore {
     initializeRequest: unknown,
     clientProtocolVersion?: string,
     /**
-     * Mcp-Session-Id the CLIENT sent on this initialize, if any. Real upstream
-     * adopts a client-sent header id instead of minting one, so a re-initialize
-     * after a proxy restart must replay it (raw-pipe transparency). Never an
+     * Mcp-Session-Id the CLIENT sent on this initialize, if any. The hosted
+     * server adopts a client-sent header id instead of minting one, so a
+     * re-initialize after a proxy restart must replay it. Never an
      * adapter-invented key.
      */
     clientSessionId?: string
@@ -193,8 +193,8 @@ export function createProxyCore(options: ProxyCoreOptions): ProxyCore {
       const live = sessions.get(localKey);
       if (live !== undefined && response.sessionId !== null) {
         live.upstreamSessionId = response.sessionId;
-        // Alias the entry under the upstream-issued id: with raw-pipe bridging
-        // the client re-sends upstream's id, so later calls arrive keyed by it.
+        // Alias the entry under the upstream-issued id: the client re-sends
+        // upstream's id, so later calls arrive keyed by it.
         sessions.alias(response.sessionId, live);
       }
       return {
@@ -210,14 +210,14 @@ export function createProxyCore(options: ProxyCoreOptions): ProxyCore {
       const response = await withInflight(localKey, (signal) =>
         upstream.post(notification, {
           // No captured id means the client is re-sending upstream's own id as
-          // the local key (raw-pipe bridging) — replay the key itself.
+          // the local key — replay the key itself.
           sessionId: entry.upstreamSessionId ?? localKey,
           protocolVersion: clientProtocolVersion ?? entry.protocolVersion,
           signal,
         })
       );
       // Upstream's contract for notifications is HTTP 204, empty body.
-      // PINNED DECISION (Phase 6): any other successful-fetch answer —
+      // Deliberate: any other successful-fetch answer —
       // including a JSON-RPC error body — is deliberately swallowed after a
       // stderr warning, because a JSON-RPC notification has no response
       // channel to relay it on (the local client still gets its 204).
@@ -334,9 +334,9 @@ function jsonRpcErrorCodeOf(body: unknown): number | undefined {
 }
 
 /**
- * The JSON-RPC id of a request message, undefined when absent (Phase 7: the
- * single copy — the HTTP adapter imports this too; the shaping functions in
- * core/errors.ts normalize undefined to null themselves).
+ * The JSON-RPC id of a request message, undefined when absent. Single copy —
+ * the HTTP adapter imports this too; the shaping functions in core/errors.ts
+ * normalize undefined to null themselves.
  */
 export function requestIdOf(request: unknown): unknown {
   if (typeof request === "object" && request !== null && "id" in request) {

@@ -1,16 +1,14 @@
 /**
- * Phase 5 SSE relay tests over real local HTTP: client → 127.0.0.1 server →
+ * SSE relay tests over real local HTTP: client → 127.0.0.1 server →
  * proxy core → mock upstream. Covers ordered byte-verbatim relay (raw `data:`
  * payload strings — and the full SSE body — compared on the wire),
  * progressToken preservation (incl. upstream's 'unknown' fill-in),
  * client-abort-mid-stream canceling the upstream request (the mock observes
  * the abort), independent concurrent session streams, mid-stream upstream
- * crash (Phase 6 in-stream error frame), local-write vs upstream error
+ * crash (in-stream error frame), local-write vs upstream error
  * classification at the core level, >64KB SSE frames through the full local
- * server (Phase 7), and shutdown (closeAll via shutdown hooks) aborting an
- * in-flight stream with the framed abort error (Phase 7).
- *
- * The frame-verbatim SSE test formerly in adapter.test.ts moved here.
+ * server, and shutdown (closeAll via shutdown hooks) aborting an
+ * in-flight stream with the framed abort error.
  */
 import { createServer, type Server } from "node:http";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -74,7 +72,7 @@ describe("SSE relay (real local HTTP → mock upstream)", () => {
     const expected = buildAutomationSseMessages("tok-relay", 4);
     // Raw data: payload strings on the wire, in order, final frame last.
     expect(sseDataPayloads(result.text)).toEqual(expected.map((m) => JSON.stringify(m)));
-    // Stronger (Phase 7 wire-bytes bar): the ENTIRE raw SSE body received on
+    // Stronger (wire-bytes bar): the ENTIRE raw SSE body received on
     // the socket is byte-identical to what the mock wrote — framing included,
     // no re-parse anywhere in this comparison.
     expect(result.text).toBe(expected.map((m) => `data: ${JSON.stringify(m)}\n\n`).join(""));
@@ -141,8 +139,8 @@ describe("SSE relay (real local HTTP → mock upstream)", () => {
     );
   });
 
-  it("PINNED: a no-progress SSE stream (first frame is final) downgrades to a plain JSON response", async () => {
-    // Phase 7 review gap 1: when upstream's stream carries ONLY the final
+  it("a no-progress SSE stream (first frame is final) downgrades to a plain JSON response", async () => {
+    // When upstream's stream carries ONLY the final
     // JSON-RPC response (no progress frames first), `streaming` never flips in
     // relayPossiblyStreaming, so the adapter answers the tools/call as an
     // ordinary application/json response instead of opening an SSE stream —
@@ -163,10 +161,10 @@ describe("SSE relay (real local HTTP → mock upstream)", () => {
     expect(result.text).toBe(JSON.stringify(finalMessage));
   });
 
-  it("emits the Phase 6 in-stream error frame when upstream dies mid-stream", async () => {
+  it("emits the in-stream error frame when upstream dies mid-stream", async () => {
     // The mock destroys the socket after 2 frames; the local client must see
     // the 2 relayed frames plus an SSE-framed error — never an unframed body,
-    // never a silent clean end. Phase 6 shape: -32000, "run may still be
+    // never a silent clean end. Shape: -32000, "run may still be
     // executing", runId (seen in progress _meta) in data. Full payload
     // assertions live in tests/errors.test.ts.
     const result = await postJson(
@@ -237,7 +235,7 @@ describe("raw byte relay fidelity (odd-bytes upstream)", () => {
   });
 
   it("relays a >64KB SSE frame through the FULL local server, byte-identical", async () => {
-    // Phase 7 gap-fill: tests/sse.test.ts proves the PARSER survives huge
+    // tests/sse.test.ts proves the PARSER survives huge
     // frames; this proves the whole hop does — real sockets on both legs,
     // upstream writing the frame in small chunks so it arrives fragmented.
     const bigPayload = JSON.stringify({
@@ -297,12 +295,12 @@ describe("raw byte relay fidelity (odd-bytes upstream)", () => {
 
 describe("shutdown with an in-flight stream (closeAll via shutdown hooks)", () => {
   it("aborts the upstream fetch and ends the client stream with the framed abort error", async () => {
-    // Phase 7 gap-fill for "SIGTERM closes cleanly": src/index.ts wires
+    // "SIGTERM closes cleanly": src/index.ts wires
     // SIGINT/SIGTERM to the shutdownHooks array and createProxyCore registers
     // closeAll() there — running the registered hook IS the signal path minus
     // process.exit. Asserted: the in-flight upstream fetch aborts (the mock
     // observes it) and the local client's stream ends — no hang — with the
-    // Phase 6 framed -32000 "proxy aborted the upstream request" error.
+    // framed -32000 "proxy aborted the upstream request" error.
     const mock = await startMockUpstream();
     const hooks: Array<() => void | Promise<void>> = [];
     const core = createProxyCore({ upstreamUrl: mock.url, apiKey: API_KEY, hooks });

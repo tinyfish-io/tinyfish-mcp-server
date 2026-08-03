@@ -1,10 +1,10 @@
 /**
- * Full-flow tests for the HTTP adapter over real local HTTP against the spike
- * mock upstream: client → 127.0.0.1 server → proxy core → mock upstream.
+ * Full-flow tests for the HTTP adapter over real local HTTP:
+ * client → 127.0.0.1 server → proxy core → mock upstream.
  *
  * Tests inside the main describe run sequentially and share one session
  * (initialize captures the upstream-issued Mcp-Session-Id; later requests
- * re-send it, exercising the raw-pipe session bridging end to end).
+ * re-send it, exercising the session bridging end to end).
  */
 import type { Server } from "node:http";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -29,7 +29,7 @@ describe("HTTP adapter full flow (real local HTTP → mock upstream)", () => {
   let server: Server;
   let base: string;
   let mcpUrl: string;
-  // Captured at initialize; re-sent by the "client" afterwards (raw-pipe bridging).
+  // Captured at initialize; re-sent by the "client" afterwards.
   let sessionId: string;
   const sessionHeaders = () => ({
     "Mcp-Session-Id": sessionId,
@@ -140,11 +140,11 @@ describe("HTTP adapter full flow (real local HTTP → mock upstream)", () => {
     );
     expect(result.sessionId).toBe(sessionId);
     // The request body reached upstream verbatim over the real socket — the
-    // mock records the parsed body per request (Phase 7 review gap 3).
+    // mock records the parsed body per request.
     expect(mock.seen.at(-1)?.body).toEqual(request);
   });
 
-  it("resources/list forwards generically: raw body verbatim vs fixture (Phase 7 — spike never exercised resources/*)", async () => {
+  it("resources/list forwards generically: raw body verbatim vs fixture", async () => {
     const result = await postJson(
       mcpUrl,
       { jsonrpc: "2.0", id: 40, method: "resources/list", params: {} },
@@ -173,8 +173,7 @@ describe("HTTP adapter full flow (real local HTTP → mock upstream)", () => {
     expect(mock.seen.at(-1)).toMatchObject({ method: "resources/read", sessionId });
   });
 
-  // The SSE streaming test moved to tests/relay.test.ts (Phase 5) — the relay
-  // suite owns all streaming coverage; no duplicate here.
+  // SSE streaming coverage lives in tests/relay.test.ts — no duplicate here.
 
   it("unknown method: upstream MethodNotFound relayed verbatim with upstream 400", async () => {
     const result = await postJson(
@@ -287,7 +286,7 @@ describe("HTTP adapter full flow (real local HTTP → mock upstream)", () => {
 
 describe("ping before initialize (fresh server, no session anywhere)", () => {
   it("forwards a header-less ping before any initialize happened (upstream allows it)", async () => {
-    // Phase 7 gap-fill: the main suite pings AFTER its initialize ran; this
+    // The main suite pings AFTER its initialize ran; this
     // proves the very first request a client ever sends can be a ping — no
     // session header, no prior state — and it round-trips.
     const mock = await startMockUpstream();
@@ -334,7 +333,7 @@ describe("unhandled adapter failures (async-safe RequestHandler seam)", () => {
     }
   });
 
-  it("unreachable upstream: shaped -32000 'cannot reach' error (Phase 6), no key leak", async () => {
+  it("unreachable upstream: shaped -32000 'cannot reach' error, no key leak", async () => {
     const core = createProxyCore({
       // A loopback port with nothing listening — fetch fails fast.
       upstreamUrl: "http://127.0.0.1:9/mcp",

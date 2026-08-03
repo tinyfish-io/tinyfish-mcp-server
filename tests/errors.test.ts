@@ -1,13 +1,13 @@
 /**
- * Phase 6 error-handling tests — one test per rules-table row in
- * docs/phases/phase-6-errors.md, exercised through the FULL local HTTP hop
- * (client → 127.0.0.1 proxy → mock upstream) unless the row is unreachable
- * over real sockets (the final-frame write race uses a stub ServerResponse).
+ * Error-handling tests — one test per error-shaping rule, exercised through
+ * the FULL local HTTP hop (client → 127.0.0.1 proxy → mock upstream) unless
+ * the rule is unreachable over real sockets (the final-frame write race uses
+ * a stub ServerResponse).
  *
- * Rows:
+ * Rules:
  *  1. Upstream JSON-RPC error (any code)      → forwarded byte-verbatim.
  *  2. Upstream 401/403, non-JSON-RPC body     → -32001 + TINYFISH_API_KEY hint.
- *  3. Upstream 4xx/5xx with JSON-RPC body     → row 1 (verbatim, status kept).
+ *  3. Upstream 4xx/5xx with JSON-RPC body     → rule 1 (verbatim, status kept).
  *  4. Upstream unreachable                    → -32000 "cannot reach <host>",
  *                                               never silently retried.
  *  5. Mid-stream SSE disconnect               → framed -32000, "run may still
@@ -15,7 +15,7 @@
  *                                               when seen in progress _meta.
  *  6. Local proxy bug                         → -32603 generic, stack to stderr.
  *  +  Malformed client JSON                   → -32700, id -1, HTTP 400.
- *  +  Phase-5 carry-over: final-frame write failure classifies as LOCAL.
+ *  +  Final-frame write failure classifies as LOCAL.
  *
  * Locally shaped upstream-leg errors (-32000/-32001) answer HTTP 502; local
  * bugs answer 500; ParseError answers 400 (decision documented in
@@ -47,7 +47,7 @@ interface JsonRpcErrorShape {
   id: unknown;
 }
 
-describe("Phase 6 rules table (full local HTTP hop → mock upstream)", () => {
+describe("error-shaping rules (full local HTTP hop → mock upstream)", () => {
   let mock: MockUpstream;
   let server: Server;
   let mcpUrl: string;
@@ -211,11 +211,11 @@ describe("Phase 6 rules table (full local HTTP hop → mock upstream)", () => {
   });
 
   it("notification hitting a 401 non-JSON-RPC body: HTTP 502, -32001, id null (never a silent 204)", async () => {
-    // Phase 7 review gap 2 (Phase 6 probe E): the THROWING notification error
+    // The THROWING notification error
     // path through the wire. The auth failure throws before the adapter's
     // writeHead(204), so the shaped -32001 replaces the 204 wholesale, with
     // id null (notifications carry no id). Contrast: a 401 whose body IS a
-    // JSON-RPC error is swallowed after a warn (pinned decision, covered at
+    // JSON-RPC error is swallowed after a warn (deliberate, covered at
     // core level in tests/session.test.ts).
     mock.authReject = {
       status: 401,
@@ -378,7 +378,7 @@ describe("row 6: local proxy bug", () => {
   });
 });
 
-describe("toStreamErrorFrame differentiates failure kinds (Phase 6 review gap 4)", () => {
+describe("toStreamErrorFrame differentiates failure kinds", () => {
   it("gives a session-close abort its own message, distinct from an upstream death", () => {
     const aborted = toStreamErrorFrame(new UpstreamAbortedError("aborted"), 1, MOCK_RUN_ID);
     const died = toStreamErrorFrame(new UpstreamUnreachableError("terminated"), 1, MOCK_RUN_ID);
@@ -403,7 +403,7 @@ describe("toStreamErrorFrame differentiates failure kinds (Phase 6 review gap 4)
   });
 });
 
-describe("carry-over: final-frame write failure classifies as LOCAL (Phase 5 review gap 2)", () => {
+describe("final-frame write failure classifies as LOCAL", () => {
   /**
    * Stub ServerResponse whose write() succeeds for the progress frames and
    * fails on the final frame, WITHOUT emitting 'close' first — the narrow

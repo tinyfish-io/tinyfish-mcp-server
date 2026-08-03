@@ -1,7 +1,7 @@
 /**
- * Incremental SSE parser over a ReadableStream<Uint8Array> (Phase 5).
+ * Incremental SSE parser over a ReadableStream<Uint8Array>.
  *
- * Replaces proxy-core's inline blank-line splitter. Handles chunk boundaries
+ * Handles chunk boundaries
  * anywhere — mid-line, mid-event, mid-CRLF, even mid-UTF-8-codepoint (the
  * streaming TextDecoder holds partial sequences) — per the SSE processing
  * model:
@@ -15,12 +15,11 @@
  * - A blank line dispatches the pending event; blocks without any `data:`
  *   field dispatch nothing (spec behavior — comments/ids alone are dropped).
  * - A stream that ends without a trailing blank line still dispatches its
- *   pending event (tolerance kept from the Phase 3 inline parser).
+ *   pending event.
  *
  * Each yielded event carries BOTH the parsed JSON and the raw joined data
  * payload string, so a relaying transport can pipe upstream's original bytes
- * through untouched (byte-verbatim relay — spike guidance) instead of
- * re-serializing.
+ * through untouched instead of re-serializing.
  *
  * Teardown: breaking out of (or throwing from) a for-await over this
  * generator runs its return path, which ends the inner for-await over the
@@ -123,8 +122,8 @@ export async function* parseSseStream(
 
 /**
  * Every upstream frame must be a JSON-RPC message. An empty `data:` payload is
- * therefore a protocol violation too (JSON.parse("") throws) — pinned behavior:
- * it surfaces as UpstreamProtocolError, same as any other non-JSON payload.
+ * therefore a protocol violation too (JSON.parse("") throws): it surfaces as
+ * UpstreamProtocolError, same as any other non-JSON payload.
  */
 function parseJsonPayload(rawData: string): unknown {
   try {
