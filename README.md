@@ -1,7 +1,6 @@
 # @tiny-fish/mcp
 
-> **Status: pre-release.** Not yet published to npm — API-key authentication
-> on the hosted server is still rolling out.
+[![npm version](https://img.shields.io/npm/v/@tiny-fish/mcp)](https://www.npmjs.com/package/@tiny-fish/mcp)
 
 TinyFish local MCP server — a transparent reverse proxy that exposes a local
 Streamable-HTTP MCP endpoint at `http://127.0.0.1:3711/mcp` and forwards every
