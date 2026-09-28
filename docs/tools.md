@@ -2,6 +2,10 @@
 
 The tools that the TinyFish MCP server (`https://agent.tinyfish.ai/mcp`) exposes to any MCP client including, Claude Code, Cursor and VS Code. Use them to search the web, fetch and extract page content, automate browsers, run remote Chrome sessions and monitor pages for changes.
 
+> **Using Claude or ChatGPT in the browser or desktop app?** Skip the setup and add the official
+> TinyFish plugin for **[Claude](https://claude.ai/directory/tinyfish)** or **[ChatGPT](https://chatgpt.com/plugins/plugin_asdk_app_695325bae7348191b58ae9349a963d22?search=tinyfish)** in one click. It bundles
+> these tools with ready-made skills and safety rules.
+
 This proxy relays these tools unchanged from the hosted server. Each tool has a short summary, followed
 by its full definition copied verbatim from the server (under "Full tool definition"). When a
 definition changes, the server's `tools/list` response is the source of truth.

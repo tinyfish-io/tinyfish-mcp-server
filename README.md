@@ -6,6 +6,10 @@ TinyFish MCP server: web search, page fetching and extraction, browser
 automation and page monitoring for Claude, Cursor, VS Code and any MCP
 client. Search and Fetch are free.
 
+> **Using Claude or ChatGPT in the browser or desktop app?** Skip the setup and add the official
+> TinyFish plugin for **[Claude](https://claude.ai/directory/tinyfish)** or **[ChatGPT](https://chatgpt.com/plugins/plugin_asdk_app_695325bae7348191b58ae9349a963d22?search=tinyfish)** in one click. It bundles
+> these tools with ready-made skills and safety rules.
+
 This package is a transparent reverse proxy that exposes a local
 Streamable-HTTP MCP endpoint at `http://127.0.0.1:3711/mcp` and forwards every
 request to the hosted TinyFish MCP server at `https://agent.tinyfish.ai/mcp`.

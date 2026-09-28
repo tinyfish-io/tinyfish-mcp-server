@@ -5,6 +5,10 @@ prompt into an MCP client (Claude Code, Claude Desktop, Cursor, VS Code, Codex, 
 once TinyFish is connected. The assistant picks the tools. The calls shown here are what each prompt
 typically resolves to.
 
+> **Using Claude or ChatGPT in the browser or desktop app?** Skip the setup and add the official
+> TinyFish plugin for **[Claude](https://claude.ai/directory/tinyfish)** or **[ChatGPT](https://chatgpt.com/plugins/plugin_asdk_app_695325bae7348191b58ae9349a963d22?search=tinyfish)** in one click. It bundles
+> these tools with ready-made skills and safety rules.
+
 New to TinyFish? Connect your client first with the
 **[MCP Integration guide](https://docs.tinyfish.ai/mcp-integration)**. Every tool and parameter is
 listed in [tools.md](tools.md).
