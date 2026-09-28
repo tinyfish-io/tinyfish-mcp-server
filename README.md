@@ -2,7 +2,15 @@
 
 [![npm version](https://img.shields.io/npm/v/@tiny-fish/mcp)](https://www.npmjs.com/package/@tiny-fish/mcp)
 
-TinyFish local MCP server — a transparent reverse proxy that exposes a local
+TinyFish MCP server: web search, page fetching and extraction, browser
+automation and page monitoring for Claude, Cursor, VS Code and any MCP
+client. Search and Fetch are free.
+
+> **Using Claude or ChatGPT in the browser or desktop app?** Skip the setup and add the official
+> TinyFish plugin for **[Claude](https://claude.ai/directory/tinyfish)** or **[ChatGPT](https://chatgpt.com/plugins/plugin_asdk_app_695325bae7348191b58ae9349a963d22)** in one click. It bundles
+> these tools with ready-made skills and safety rules.
+
+This package is a transparent reverse proxy that exposes a local
 Streamable-HTTP MCP endpoint at `http://127.0.0.1:3711/mcp` and forwards every
 request to the hosted TinyFish MCP server at `https://agent.tinyfish.ai/mcp`.
 
@@ -12,6 +20,26 @@ stream all come from the hosted server: streaming (SSE) responses are relayed
 byte-verbatim, and non-streaming JSON responses are relayed content-identical
 (parsed and re-serialized, deep-equal to upstream). What the hosted server
 says is what your client sees.
+
+## Tools
+
+The hosted server exposes 28 tools. You can use them to search the web, fetch and
+extract pages, automate browsers, run remote Chrome sessions (CDP), keep
+signed-in Browser Context Profiles and schedule page and topic Monitors.
+
+| Category | Tools |
+|---|---|
+| Search & Fetch | `search`, `fetch_content` |
+| Web automation | `run_web_automation`, `run_web_automation_async`, `get_run`, `list_runs`, `cancel_run`, `batch_status`, `batch_cancel` |
+| Browser sessions | `create_browser_session`, `list_browser_sessions`, `close_browser_session` |
+| Browser Context Profiles | `create_profile`, `list_profiles`, `start_profile_setup_session`, `save_profile_setup_session`, `cancel_profile_setup_session` |
+| Monitors | `create_monitor`, `get_monitor`, `list_monitors`, `run_monitor`, `pause_monitor`, `resume_monitor`, `cancel_monitor` |
+| Account & usage | `get_wallet`, `get_search_usage`, `list_fetch_usage`, `guide_next_step` |
+
+- [Tool reference](https://github.com/tinyfish-io/tinyfish-mcp-server/blob/main/docs/tools.md): every tool, verbatim, with parameters
+- [Examples](https://github.com/tinyfish-io/tinyfish-mcp-server/blob/main/docs/examples.md): common workflows and prompts
+- [MCP Integration guide](https://docs.tinyfish.ai/mcp-integration): client setup, auth, rates, troubleshooting
+- Full documentation: [docs.tinyfish.ai](https://docs.tinyfish.ai)
 
 ## Use the hosted server first
 
