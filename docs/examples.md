@@ -6,7 +6,7 @@ once TinyFish is connected. The assistant picks the tools. The calls shown here 
 typically resolves to.
 
 > **Using Claude or ChatGPT in the browser or desktop app?** Skip the setup and add the official
-> TinyFish plugin for **[Claude](https://claude.ai/directory/tinyfish)** or **[ChatGPT](https://chatgpt.com/plugins/plugin_asdk_app_695325bae7348191b58ae9349a963d22?search=tinyfish)** in one click. It bundles
+> TinyFish plugin for **[Claude](https://claude.ai/directory/tinyfish)** or **[ChatGPT](https://chatgpt.com/plugins/plugin_asdk_app_695325bae7348191b58ae9349a963d22)** in one click. It bundles
 > these tools with ready-made skills and safety rules.
 
 New to TinyFish? Connect your client first with the
