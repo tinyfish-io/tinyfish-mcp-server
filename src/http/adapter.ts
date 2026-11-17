@@ -31,7 +31,12 @@ import {
   toJsonRpcError,
   toStreamErrorFrame,
 } from "../core/errors.js";
-import { requestIdOf, type OnEvent, type ProxyCore, type ProxyResponse } from "../core/proxy-core.js";
+import {
+  requestIdOf,
+  type OnEvent,
+  type ProxyCore,
+  type ProxyResponse,
+} from "../core/proxy-core.js";
 import { log } from "../log.js";
 import type { RequestHandler } from "./index.js";
 
@@ -56,9 +61,22 @@ export function createMcpAdapter(core: ProxyCore): RequestHandler {
       return;
     }
 
+    const clientAbort = new AbortController();
+    const onClose = (): void => {
+      if (!res.writableEnded) clientAbort.abort();
+    };
+    res.on("close", onClose);
+    // The socket may have closed while the request body was being read.
+    if (res.destroyed) onClose();
+
     try {
-      await route(core, res, message, sessionId, protocolVersion);
+      await route(core, res, message, sessionId, protocolVersion, clientAbort.signal);
     } catch (err) {
+      if (clientAbort.signal.aborted) {
+        log.warn("local client disconnected; upstream request aborted");
+        res.destroy();
+        return;
+      }
       // Every failure upstream never answered as JSON-RPC is shaped
       // through the one function in core/errors.ts. Streamed requests handle
       // their own mid-stream failures and only rethrow pre-stream ones, so
@@ -71,6 +89,8 @@ export function createMcpAdapter(core: ProxyCore): RequestHandler {
       }
       const shaped = toJsonRpcError(err, requestIdOf(message));
       sendJson(res, shaped.httpStatus, shaped.body);
+    } finally {
+      res.removeListener("close", onClose);
     }
   };
 }
@@ -80,13 +100,14 @@ async function route(
   res: ServerResponse,
   message: unknown,
   sessionId: string | undefined,
-  protocolVersion: string | undefined
+  protocolVersion: string | undefined,
+  signal: AbortSignal
 ): Promise<void> {
   // Notification (has method, no id): forward, answer 204 empty like upstream.
   if (isNotification(message)) {
     // localKey "" ⇒ the core sends no Mcp-Session-Id upstream (transparent
     // for session-less notifications); a real client id replays verbatim.
-    await core.notify(sessionId ?? "", message, protocolVersion);
+    await core.notify(sessionId ?? "", message, protocolVersion, signal);
     res.writeHead(204);
     res.end();
     return;
@@ -101,13 +122,13 @@ async function route(
     // replays it upstream (upstream adopts client-sent header ids) without
     // ever sending an adapter-invented key.
     const localKey = sessionId ?? randomUUID();
-    const response = await core.initialize(localKey, message, protocolVersion, sessionId);
+    const response = await core.initialize(localKey, message, protocolVersion, sessionId, signal);
     sendProxyResponse(res, response);
     return;
   }
 
   if (method === "tools/call") {
-    await relayPossiblyStreaming(core, sessionId ?? "", message, protocolVersion, res);
+    await relayPossiblyStreaming(core, sessionId ?? "", message, protocolVersion, res, signal);
     return;
   }
 
@@ -119,7 +140,7 @@ async function route(
   // it, so a batch is not special-cased anywhere — it forwards as-is and
   // upstream answers its own InvalidRequest. Same story on the response side:
   // upstream.ts's isJsonRpcMessage gate excludes arrays by design.
-  const response = await core.forward(sessionId ?? "", message, protocolVersion);
+  const response = await core.forward(sessionId ?? "", message, protocolVersion, signal);
   sendProxyResponse(res, response);
 }
 
@@ -163,17 +184,13 @@ async function relayPossiblyStreaming(
   localKey: string,
   message: unknown,
   protocolVersion: string | undefined,
-  res: ServerResponse
+  res: ServerResponse,
+  signal: AbortSignal
 ): Promise<void> {
   let streaming = false;
   // Last _meta.runId seen in a relayed progress frame — upstream names the
   // run there so a mid-stream failure can hand the client a recovery handle.
   let lastRunId: string | undefined;
-  const clientAbort = new AbortController();
-  const onClose = (): void => {
-    if (!res.writableEnded) clientAbort.abort();
-  };
-  res.on("close", onClose);
 
   const onEvent: OnEvent = async (event, rawData) => {
     if (!streaming) {
@@ -191,13 +208,7 @@ async function relayPossiblyStreaming(
   };
 
   try {
-    const response = await core.forwardStream(
-      localKey,
-      message,
-      onEvent,
-      protocolVersion,
-      clientAbort.signal
-    );
+    const response = await core.forwardStream(localKey, message, onEvent, protocolVersion, signal);
     if (streaming) {
       try {
         await writeSseFrame(res, response.body, response.rawBody);
@@ -218,7 +229,7 @@ async function relayPossiblyStreaming(
     // Plain JSON answer: written with upstream's status, body verbatim.
     sendProxyResponse(res, response);
   } catch (err) {
-    if (clientAbort.signal.aborted) {
+    if (signal.aborted) {
       // The local client went away; the upstream fetch was aborted through the
       // per-request signal. Not an upstream failure — log it as what it is.
       log.warn("local client disconnected mid-tools/call; upstream request aborted");
@@ -258,8 +269,6 @@ async function relayPossiblyStreaming(
     // Pre-stream failures (headers not sent) rethrow to the shaping catch in
     // the handler (toJsonRpcError → -32000/-32001/-32603 with an HTTP status).
     throw err;
-  } finally {
-    res.removeListener("close", onClose);
   }
 }
 

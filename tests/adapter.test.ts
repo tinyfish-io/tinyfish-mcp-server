@@ -6,9 +6,9 @@
  * (initialize captures the upstream-issued Mcp-Session-Id; later requests
  * re-send it, exercising the session bridging end to end).
  */
-import type { Server } from "node:http";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { listeningPort, postJson, send } from "./helpers/http.js";
+import { request, type Server } from "node:http";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { jsonResponse, listeningPort, postJson, send } from "./helpers/http.js";
 import {
   buildEchoResult,
   buildResourceReadResult,
@@ -19,10 +19,204 @@ import {
   type MockUpstream,
 } from "./helpers/mock-upstream.js";
 import { createProxyCore } from "../src/core/proxy-core.js";
+import type { FetchLike } from "../src/core/upstream.js";
 import { createMcpAdapter } from "../src/http/adapter.js";
 import { createAppHandler, startHttpServer, type RequestHandler } from "../src/http/index.js";
 
 const API_KEY = "sk-adapter-secret-0000";
+
+// ---------------------------------------------------------------------------
+// Disconnect-test barriers: distinguish body completion from response closure.
+// ---------------------------------------------------------------------------
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => (resolve = done));
+  return { promise, resolve };
+}
+
+/** Bound event waits so a missing readiness event fails without hanging HTTP cleanup. */
+async function within<T>(promise: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error("disconnect-test barrier timed out")), 2000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Keep the injected upstream pending until released, honoring native fetch abort semantics. */
+async function holdResponse(signal: AbortSignal, response: Promise<Response>): Promise<Response> {
+  let onAbort!: () => void;
+  try {
+    return await Promise.race([
+      response,
+      new Promise<never>((_resolve, reject) => {
+        onAbort = () => reject(new DOMException("This operation was aborted", "AbortError"));
+        if (signal.aborted) onAbort();
+        else signal.addEventListener("abort", onAbort, { once: true });
+      }),
+    ]);
+  } finally {
+    signal.removeEventListener("abort", onAbort);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// End disconnect-test helpers.
+// ---------------------------------------------------------------------------
+
+describe("non-streaming client disconnect (real local HTTP → injected upstream fetch)", () => {
+  // tools/call is the existing cancellation path, even before any SSE response.
+  it.each(["initialize", "ping", "tools/list", "notifications/initialized", "tools/call"])(
+    "%s aborts only the disconnected request after its body is complete",
+    async (method) => {
+      const sessionId = "disconnect-same-session";
+      const target = { started: deferred<RequestInit>(), response: deferred<Response>() };
+      const sibling = { started: deferred<RequestInit>(), response: deferred<Response>() };
+      const bodyClosed = deferred<{ complete: boolean; responseDestroyed: boolean }>();
+      const responseClosed = deferred<{ ended: boolean; socketDestroyed: boolean }>();
+      const fetchFn: FetchLike = async (_input, init) => {
+        const body = JSON.parse(init?.body as string) as { id?: number };
+        if (body.id === 1) {
+          return jsonResponse(
+            { jsonrpc: "2.0", id: 1, result: MOCK_INITIALIZE_RESULT },
+            { headers: { "Mcp-Session-Id": sessionId } }
+          );
+        }
+        if (!init?.signal) throw new Error("upstream fetch missing its tracked signal");
+        const pending = body.id === 3 ? sibling : target;
+        pending.started.resolve(init);
+        return holdResponse(init.signal, pending.response.promise);
+      };
+      const core = createProxyCore({
+        upstreamUrl: "https://upstream.test/mcp",
+        apiKey: API_KEY,
+        hooks: null,
+        fetchFn,
+      });
+      const adapter = createMcpAdapter(core);
+      const server = await startHttpServer(
+        0,
+        createAppHandler((req, res) => {
+          if (req.headers["x-test-disconnect"] === "yes") {
+            req.once("close", () =>
+              bodyClosed.resolve({ complete: req.complete, responseDestroyed: res.destroyed })
+            );
+            res.once("close", () =>
+              responseClosed.resolve({
+                ended: res.writableEnded,
+                socketDestroyed: req.socket.destroyed,
+              })
+            );
+          }
+          return adapter(req, res);
+        })
+      );
+      const url = `http://127.0.0.1:${listeningPort(server)}/mcp`;
+      const client = request(url, {
+        method: "POST",
+        agent: false,
+        headers: {
+          "Content-Type": "application/json",
+          "Mcp-Session-Id": sessionId,
+          "X-Test-Disconnect": "yes",
+        },
+      });
+      // Destroying the real client socket deliberately produces ECONNRESET.
+      client.on("error", () => undefined);
+      let healthyResponse: ReturnType<typeof postJson> | undefined;
+      try {
+        const initialized = await within(
+          postJson(url, {
+            jsonrpc: "2.0",
+            id: 1,
+            method: "initialize",
+            params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t" } },
+          })
+        );
+        expect(initialized.sessionId).toBe(sessionId);
+        client.end(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            ...(method === "notifications/initialized" ? {} : { id: 2 }),
+            method,
+            ...(method === "initialize"
+              ? {
+                  params: {
+                    protocolVersion: "2025-06-18",
+                    capabilities: {},
+                    clientInfo: { name: "t" },
+                  },
+                }
+              : method === "tools/call"
+                ? { params: { name: "echo", arguments: {} } }
+                : {}),
+          })
+        );
+        healthyResponse = postJson(
+          url,
+          { jsonrpc: "2.0", id: 3, method: "ping" },
+          { "Mcp-Session-Id": sessionId }
+        );
+        const [targetCall, siblingCall] = await within(
+          Promise.all([target.started.promise, sibling.started.promise])
+        );
+        expect(await within(bodyClosed.promise)).toEqual({
+          complete: true,
+          responseDestroyed: false,
+        });
+        for (const call of [targetCall, siblingCall]) {
+          expect(new Headers(call.headers).get("mcp-session-id")).toBe(sessionId);
+          expect(call.signal?.aborted).toBe(false);
+        }
+        expect(targetCall.signal).not.toBe(siblingCall.signal);
+
+        client.destroy();
+        expect(await within(responseClosed.promise)).toEqual({
+          ended: false,
+          socketDestroyed: true,
+        });
+        // Finish the isolation check even when cancellation is missing on this revision.
+        const aborted = await vi
+          .waitFor(
+            () => {
+              if (!targetCall.signal?.aborted) throw new Error("upstream signal still live");
+              return true;
+            },
+            { timeout: 300, interval: 10 }
+          )
+          .catch(() => false);
+        expect(siblingCall.signal?.aborted).toBe(false);
+        sibling.response.resolve(
+          jsonResponse(
+            { jsonrpc: "2.0", id: 3, result: {} },
+            { headers: { "Mcp-Session-Id": sessionId } }
+          )
+        );
+        const healthy = await within(healthyResponse);
+        expect(healthy.status).toBe(200);
+        expect(healthy.sessionId).toBe(sessionId);
+        expect(JSON.parse(healthy.text)).toEqual({ jsonrpc: "2.0", id: 3, result: {} });
+        expect(aborted, "upstream FetchLike signal remained live after response socket close").toBe(
+          true
+        );
+      } finally {
+        const drained = Promise.allSettled(healthyResponse ? [healthyResponse] : []);
+        client.destroy();
+        core.closeAll();
+        server.closeAllConnections();
+        await within(drained);
+        await within(new Promise<void>((resolve) => server.close(() => resolve())));
+      }
+    }
+  );
+});
 
 describe("HTTP adapter full flow (real local HTTP → mock upstream)", () => {
   let mock: MockUpstream;
