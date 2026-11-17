@@ -62,6 +62,7 @@ export interface ProxyResponse {
   rawBody?: string;
 }
 
+/** Optional request signals cancel one HTTP exchange without closing sibling requests. */
 export interface ProxyCore {
   /**
    * POST the client's initialize request upstream verbatim; capture
@@ -79,7 +80,8 @@ export interface ProxyCore {
      * re-initialize after a proxy restart must replay it. Never an
      * adapter-invented key.
      */
-    clientSessionId?: string
+    clientSessionId?: string,
+    signal?: AbortSignal
   ): Promise<ProxyResponse>;
   /**
    * Forward a JSON-RPC notification; upstream answers 204; resolves void.
@@ -87,12 +89,18 @@ export interface ProxyCore {
    * THIS call (headers are per-request on the wire); falls back to the value
    * captured at initialize when omitted.
    */
-  notify(localKey: string, notification: unknown, clientProtocolVersion?: string): Promise<void>;
+  notify(
+    localKey: string,
+    notification: unknown,
+    clientProtocolVersion?: string,
+    signal?: AbortSignal
+  ): Promise<void>;
   /** Non-streaming forward with the stored session id; response verbatim. */
   forward(
     localKey: string,
     request: unknown,
-    clientProtocolVersion?: string
+    clientProtocolVersion?: string,
+    signal?: AbortSignal
   ): Promise<ProxyResponse>;
   /**
    * Forward a request that may stream. If upstream answers text/event-stream,
@@ -167,21 +175,30 @@ export function createProxyCore(options: ProxyCoreOptions): ProxyCore {
   }
 
   const core: ProxyCore = {
-    async initialize(localKey, initializeRequest, clientProtocolVersion, clientSessionId) {
+    async initialize(
+      localKey,
+      initializeRequest,
+      clientProtocolVersion,
+      clientSessionId,
+      abortSignal
+    ) {
       const entry = sessions.getOrCreate(localKey);
       if (clientProtocolVersion !== undefined) {
         entry.protocolVersion = clientProtocolVersion;
       }
-      const response = await withInflight(localKey, (signal) =>
-        upstream.post(initializeRequest, {
-          // No localKey fallback here: upstream adopts any header id verbatim,
-          // so sending an adapter-invented key on initialize would prevent
-          // upstream from minting the session id. A CLIENT-sent id, however,
-          // must replay (upstream honors it — proxy-restart transparency).
-          sessionId: entry.upstreamSessionId ?? clientSessionId,
-          protocolVersion: entry.protocolVersion,
-          signal,
-        })
+      const response = await withInflight(
+        localKey,
+        (signal) =>
+          upstream.post(initializeRequest, {
+            // No localKey fallback here: upstream adopts any header id verbatim,
+            // so sending an adapter-invented key on initialize would prevent
+            // upstream from minting the session id. A CLIENT-sent id, however,
+            // must replay (upstream honors it — proxy-restart transparency).
+            sessionId: entry.upstreamSessionId ?? clientSessionId,
+            protocolVersion: entry.protocolVersion,
+            signal,
+          }),
+        abortSignal
       );
       if (response.kind !== "json") {
         throw new UpstreamProtocolError(
@@ -205,16 +222,19 @@ export function createProxyCore(options: ProxyCoreOptions): ProxyCore {
       };
     },
 
-    async notify(localKey, notification, clientProtocolVersion) {
+    async notify(localKey, notification, clientProtocolVersion, abortSignal) {
       const entry = sessions.getOrCreate(localKey);
-      const response = await withInflight(localKey, (signal) =>
-        upstream.post(notification, {
-          // No captured id means the client is re-sending upstream's own id as
-          // the local key — replay the key itself.
-          sessionId: entry.upstreamSessionId ?? localKey,
-          protocolVersion: clientProtocolVersion ?? entry.protocolVersion,
-          signal,
-        })
+      const response = await withInflight(
+        localKey,
+        (signal) =>
+          upstream.post(notification, {
+            // No captured id means the client is re-sending upstream's own id as
+            // the local key — replay the key itself.
+            sessionId: entry.upstreamSessionId ?? localKey,
+            protocolVersion: clientProtocolVersion ?? entry.protocolVersion,
+            signal,
+          }),
+        abortSignal
       );
       // Upstream's contract for notifications is HTTP 204, empty body.
       // Deliberate: any other successful-fetch answer —
@@ -226,8 +246,7 @@ export function createProxyCore(options: ProxyCoreOptions): ProxyCore {
       // Unreachable against today's real upstream, which 204s notifications
       // before auth runs — revisit if the API-key branch changes that.
       if (response.kind !== "empty") {
-        const errorCode =
-          response.kind === "json" ? jsonRpcErrorCodeOf(response.body) : undefined;
+        const errorCode = response.kind === "json" ? jsonRpcErrorCodeOf(response.body) : undefined;
         const codeSuffix = errorCode !== undefined ? `, JSON-RPC error ${errorCode}` : "";
         log.warn(
           `notification got unexpected ${response.kind} response ` +
@@ -237,14 +256,17 @@ export function createProxyCore(options: ProxyCoreOptions): ProxyCore {
       }
     },
 
-    async forward(localKey, request, clientProtocolVersion) {
+    async forward(localKey, request, clientProtocolVersion, abortSignal) {
       const entry = sessions.getOrCreate(localKey);
-      const response = await withInflight(localKey, (signal) =>
-        upstream.post(request, {
-          sessionId: entry.upstreamSessionId ?? localKey,
-          protocolVersion: clientProtocolVersion ?? entry.protocolVersion,
-          signal,
-        })
+      const response = await withInflight(
+        localKey,
+        (signal) =>
+          upstream.post(request, {
+            sessionId: entry.upstreamSessionId ?? localKey,
+            protocolVersion: clientProtocolVersion ?? entry.protocolVersion,
+            signal,
+          }),
+        abortSignal
       );
       if (response.kind !== "json") {
         throw new UpstreamProtocolError(
