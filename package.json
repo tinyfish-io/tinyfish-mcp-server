@@ -63,9 +63,9 @@
     "registry": "https://registry.npmjs.org/"
   },
   "overrides": {
-    "@vitest/mocker": "^4.1.11",
-    "fast-uri": "^3.1.8",
+    "@vitest/mocker": "^4.1.12",
+    "fast-uri": "^3.1.9",
     "nanoid": "^3.3.19",
-    "qs": "^6.16.0"
+    "qs": "^6.17.1"
   }
 }
